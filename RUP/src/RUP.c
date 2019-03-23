@@ -1,48 +1,178 @@
 /*
-===============================================================================
- Name        : RUP.c
- Author      : $(author)
- Version     :
- Copyright   : $(copyright)
- Description : main definition
-===============================================================================
-*/
+ * @brief FreeRTOS Blinky example
+ *
+ * @note
+ * Copyright(C) NXP Semiconductors, 2014
+ * All rights reserved.
+ *
+ * @par
+ * Software that is described herein is for illustrative purposes only
+ * which provides customers with programming information regarding the
+ * LPC products.  This software is supplied "AS IS" without any warranties of
+ * any kind, and NXP Semiconductors and its licensor disclaim any and
+ * all warranties, express or implied, including all implied warranties of
+ * merchantability, fitness for a particular purpose and non-infringement of
+ * intellectual property rights.  NXP Semiconductors assumes no responsibility
+ * or liability for the use of the software, conveys no license or rights under any
+ * patent, copyright, mask work right, or any other intellectual property rights in
+ * or to any products. NXP Semiconductors reserves the right to make changes
+ * in the software without notification. NXP Semiconductors also makes no
+ * representation or warranty that such application will be suitable for the
+ * specified use without further testing or modification.
+ *
+ * @par
+ * Permission to use, copy, modify, and distribute this software and its
+ * documentation is hereby granted, under NXP Semiconductors' and its
+ * licensor's relevant copyrights in the software, without fee, provided that it
+ * is used in conjunction with NXP Semiconductors microcontrollers.  This
+ * copyright, permission, and disclaimer notice must appear in all copies of
+ * this code.
+ */
 
-#if defined (__USE_LPCOPEN)
-#if defined(NO_BOARD_LIB)
-#include "chip.h"
-#else
 #include "board.h"
-#endif
-#endif
+#include "FreeRTOS.h"
+#include "task.h"
+#include <stdint.h>
 
-#include <cr_section_macros.h>
+#define   LED_DELAY     4000000UL
 
-// TODO: insert other include files here
+/*****************************************************************************
+ * Private types/enumerations/variables
+ ****************************************************************************/
 
-// TODO: insert other definitions and declarations here
+/*****************************************************************************
+ * Public types/enumerations/variables
+ ****************************************************************************/
 
-int main(void) {
+/*****************************************************************************
+ * Private functions
+ ****************************************************************************/
 
-#if defined (__USE_LPCOPEN)
-    // Read clock settings and update SystemCoreClock variable
-    SystemCoreClockUpdate();
-#if !defined(NO_BOARD_LIB)
-    // Set up and initialize all required blocks and
-    // functions related to the board hardware
-    Board_Init();
-    // Set the LED to the state of "On"
-    Board_LED_Set(0, true);
-#endif
-#endif
+/*turn off all LEDs*/
+static void vClearLEDs(void)
 
-    // TODO: insert code here
-
-    // Force the counter to be placed into memory
-    volatile static int i = 0 ;
-    // Enter an infinite loop, just incrementing a counter
-    while(1) {
-        i++ ;
-    }
-    return 0 ;
+{
+	Board_LED_Set(Red, LED_OFF);
+	Board_LED_Set(Blue, LED_OFF);
+	Board_LED_Set(Green, LED_OFF);
 }
+
+/* Sets up system hardware */
+static void prvSetupHardware(void)
+{
+	SystemCoreClockUpdate();
+	Board_Init();
+
+	/*Clear all LEDs*/
+	vClearEDs();
+
+}
+static void vOldSchoolDelay(const unit32_t delay_val)
+{
+	unit32_t j =0;
+	for (j=0; j<delay_val; j++);
+
+	/* Initial LED0 state is off */
+	Board_LED_Set(0, false);
+
+	/* Initial LED1 state is off */
+	Board_LED_Set(1, false);
+
+	/* Initial LED2 state is off */
+	Board_LED_Set(2, false);
+}
+
+
+/* LED1 toggle thread */
+static void vLEDTask1(void *pvParameters) {
+	bool LedState = false;
+
+	while (1) {
+		Board_LED_Set(0, LedState);
+		LedState = (bool) !LedState;
+
+		/* About a 3Hz on/off toggle rate */
+		vTaskDelay(configTICK_RATE_HZ / 2091);    /* set delay */
+	}
+}
+
+/* LED2 toggle thread */
+static void vLEDTask2(void *pvParameters) {
+	bool LedState = false;
+
+	while (1) {
+		Board_LED_Set(1, LedState);
+		LedState = (bool) !LedState;
+
+		/* About a 7Hz on/off toggle rate */
+		vTaskDelay(configTICK_RATE_HZ / 2091);   /* set delay */
+	}
+}
+
+/* LED3 toggle thread */
+static void vLEDTask3(void *pvParameters) {
+	bool LedState = false;
+
+	while (1) {
+		Board_LED_Set(2, LedState);
+		LedState = (bool) !LedState;
+
+		/* About a 7Hz on/off toggle rate */
+		vTaskDelay(configTICK_RATE_HZ /2091);  /* set delay */
+	}
+}
+/* UART (or output) thread */
+static void vUARTTask(void *pvParameters) {
+	int tickCnt = 0;
+
+	while (1) {
+		DEBUGOUT("Tick: %d\r\n", tickCnt);
+		tickCnt++;
+
+		/* About a 1s delay here */
+		vTaskDelay(configTICK_RATE_HZ);
+	}
+}
+
+/*****************************************************************************
+ * Public functions
+ ****************************************************************************/
+
+/**
+ * @brief	main routine for FreeRTOS blinky example
+ * @return	Nothing, function should not exit
+ */
+int main(void)
+{
+	prvSetupHardware();
+
+	/* LED1 toggle thread */
+	xTaskCreate(vLEDTask1, (signed char *) "vTaskLed1",
+				configMINIMAL_STACK_SIZE, NULL, (tskIDLE_PRIORITY + 1UL),
+				(xTaskHandle *) NULL);
+
+	/* LED2 toggle thread */
+	xTaskCreate(vLEDTask2, (signed char *) "vTaskLed2",
+				configMINIMAL_STACK_SIZE, NULL, (tskIDLE_PRIORITY + 1UL),
+				(xTaskHandle *) NULL);
+
+	/* LED3 toggle thread */
+	xTaskCreate(vLEDTask3, (signed char *) "vTaskLed3",
+				configMINIMAL_STACK_SIZE, NULL, (tskIDLE_PRIORITY + 1UL),
+				(xTaskHandle *) NULL);
+
+	/* UART output thread, simply counts seconds */
+	xTaskCreate(vUARTTask, (signed char *) "vTaskUart",
+				configMINIMAL_STACK_SIZE, NULL, (tskIDLE_PRIORITY + 1UL),
+				(xTaskHandle *) NULL);
+
+	/* Start the scheduler */
+	vTaskStartScheduler();
+
+	/* Should never arrive here */
+	return 1;
+}
+
+/**
+ * @}
+ */
